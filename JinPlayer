@@ -11,6 +11,7 @@ public class RobotPlayer{
 	static Random randall = new Random();
 	static int directionalLooks[] = new int[]{0,1,-1,2,-2};
 	
+	
 	public static void run(RobotController rcin){
 		rc = rcin;
 		randall.setSeed(rc.getRobot().getID());
@@ -18,9 +19,10 @@ public class RobotPlayer{
 			try{
 				if(rc.getType()==RobotType.HQ){//if I'm a headquarters
 					runHeadquarters();
+					tryToShoot();
 				}else if(rc.getType()==RobotType.SOLDIER){//if i'm a soldier
 					runSoldier();
-				}
+				} 
 				rc.yield();
 			}catch (Exception e){
 				e.printStackTrace();
@@ -29,8 +31,8 @@ public class RobotPlayer{
 	}
 
 	private static void runSoldier() throws GameActionException {
-		int currentBytecode = Clock.getBytecodeNum();
 		tryToShoot();
+		buildPASTR();
 		
 		//communication
 		//rc.setIndicatorString(0, "read ID: "+rc.readBroadcast(0));
@@ -42,7 +44,7 @@ public class RobotPlayer{
 		
 		MapLocation runningVectorTotal = intToLoc(rc.readBroadcast(editingChannel+2));
 		rc.broadcast(editingChannel+2,locToInt(mladd(runningVectorTotal,rc.getLocation())));
-		MapLocation averagePositionOfSwarm = mldivide(intToLoc(rc.readBroadcast(usingChannel+2)),rc.readBroadcast(usingChannel));
+		MapLocation averagePositionOfSwarm = mldivide(intToLoc(rc.readBroadcast(usingChannel+2)),rc.readBroadcast(usingChannel)+1);
 		
 		rc.setIndicatorString(0, ""+locToInt(averagePositionOfSwarm));
 		
@@ -67,15 +69,16 @@ public class RobotPlayer{
 					}
 				}
 			}else{//go towards enemy hq
+				boolean atEnemyHQ = false;
 				Direction enemyHQ = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
 				if(rc.isActive()&&rc.canMove(enemyHQ)){
 					rc.move(enemyHQ);
-				}
+				} 
 			}
 		}
 	}
 	
-	
+
 	private static MapLocation mladd(MapLocation m1, MapLocation m2){
 		return new MapLocation(m1.x+m2.x,m1.y+m2.y);
 	}
@@ -99,27 +102,30 @@ public class RobotPlayer{
 			Robot anEnemy = enemyRobots[0];
 			RobotInfo anEnemyInfo;
 			anEnemyInfo = rc.senseRobotInfo(anEnemy);
-			if(anEnemyInfo.location.distanceSquaredTo(rc.getLocation())<rc.getType().attackRadiusMaxSquared && anEnemyInfo.location!=rc.senseEnemyHQLocation()){
-				if(rc.isActive()){
-					rc.attackSquare(anEnemyInfo.location);
+			rc.setIndicatorString(1, "" + anEnemyInfo.type);
+			if(rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
+					if(rc.isActive()){
+						rc.attackSquare(anEnemyInfo.location);
+					}
+					swarmMove(anEnemyInfo.location);
 				}
-				swarmMove(anEnemyInfo.location);
-				
+		}
+	}
+	
+	private static void buildPASTR() throws GameActionException {
+		
+		if( randall.nextDouble() < 0.02 && rc.sensePastrLocations(rc.getTeam()).length<5 ) {
+			//&& rc.canSenseObject(rc.senseObjectAtLocation(rc.senseHQLocation()))== false
+			if( rc.isActive()){
+				rc.construct(RobotType.PASTR);
 			}
-		}else{//there are no enemies, so build a tower
-			
-			if( randall.nextDouble() < 0.05 && rc.sensePastrLocations(rc.getTeam()).length<5 ){
-				if( rc.isActive()){
-					rc.construct(RobotType.PASTR);
-				}
-			} 
 		}
 	}
 
 	private static void runHeadquarters() throws GameActionException {
-		Direction spawnDir = Direction.NORTH;
+		Direction spawnDir = allDirections[randall.nextInt(8)];
 		if(rc.isActive()&&rc.canMove(spawnDir)&&rc.senseRobotCount()<GameConstants.MAX_ROBOTS){
-			rc.spawn(Direction.NORTH);
+			rc.spawn(spawnDir);
 		}
 		
 		int editingChannel = (Clock.getRoundNum()%2);
