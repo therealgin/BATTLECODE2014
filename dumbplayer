@@ -1,0 +1,99 @@
+package dumbplayer;
+
+import java.util.Random;
+
+import battlecode.common.Direction;
+import battlecode.common.GameActionException;
+import battlecode.common.Robot;
+import battlecode.common.RobotController;
+import battlecode.common.RobotInfo;
+import battlecode.common.RobotType;
+
+public class RobotPlayer {
+
+	static Random rand;
+	//public static RobotController rc;
+	
+	public static void run (RobotController rc) {
+		Direction[] directions = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
+		rand = new Random();
+		
+		
+		while(true){
+			if (rc.getType() == RobotType.HQ){
+				try{
+					boolean shoot = true; 
+					if (shoot) {
+						tryToShoot(rc);
+						
+					}
+					if (rc.isActive() && rc.senseRobotCount() < 25) {
+						Direction toEnemy = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
+						if (rc.senseObjectAtLocation(rc.getLocation().add(toEnemy)) == null) {
+							rc.spawn(toEnemy);
+							shoot = true; 
+						}
+						
+					}
+					
+				}catch (Exception e) {
+					e.printStackTrace();
+					System.out.println("HQ Exception");
+					}
+				
+			}
+			
+			if (rc.getType() == RobotType.SOLDIER) {
+				try {
+					if (rc.isActive()) {
+						int action = (rc.getRobot().getID()*rand.nextInt(101) + 50)%101;
+						//Construct a PASTR
+						if (action < 1 && rc.getLocation().distanceSquaredTo(rc.senseHQLocation()) > 2) {
+							rc.construct(RobotType.PASTR);
+						//Attack a random nearby enemy
+						} 
+						 else if (action < 80) {
+							Direction moveDirection = directions[rand.nextInt(8)];
+							if (rc.canMove(moveDirection)) {
+								rc.move(moveDirection);
+							}
+						//Sneak towards the enemy
+						} else {
+							Direction toEnemy = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
+							if (rc.canMove(toEnemy)) {
+								rc.sneak(toEnemy);
+							}
+						}
+					}
+				} catch (Exception e) {
+					System.out.println("Soldier Exception");
+				}
+			}
+			rc.yield();
+			
+		}
+		
+	}
+	
+	private static void tryToShoot(RobotController rc) throws GameActionException {
+		//shooting
+		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,35,rc.getTeam().opponent());
+		
+		if(enemyRobots.length>0){//if there are enemies
+			
+			for (Robot anEnemy : enemyRobots) {
+				  RobotInfo anEnemyInfo = rc.senseRobotInfo(anEnemy);
+				  if (rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
+				    if (rc.isActive()) {
+				      rc.attackSquare(anEnemyInfo.location);
+				      
+				      break;
+				    }
+				  }
+				}
+		}
+		
+	}
+
+}
+
