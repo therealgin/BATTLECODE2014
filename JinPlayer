@@ -59,7 +59,7 @@ public class RobotPlayer{
 	private static void swarmMove(MapLocation averagePositionOfSwarm) throws GameActionException{
 		Direction chosenDirection = rc.getLocation().directionTo(averagePositionOfSwarm);
 		if(rc.isActive()){
-			if(randall.nextDouble()<0.7){//go to swarm center
+			if(randall.nextDouble()<1.0){//go to swarm center
 				for(int directionalOffset:directionalLooks){
 					int forwardInt = chosenDirection.ordinal();
 					Direction trialDir = allDirections[(forwardInt+directionalOffset+8)%8];
@@ -69,8 +69,7 @@ public class RobotPlayer{
 					}
 				}
 			}else{//go towards enemy hq
-				boolean atEnemyHQ = false;
-				Direction enemyHQ = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
+				Direction enemyHQ = rc.getLocation().directionTo(mldivide(mlsub(rc.senseEnemyHQLocation(),rc.senseHQLocation()),4));
 				if(rc.isActive()&&rc.canMove(enemyHQ)){
 					rc.move(enemyHQ);
 				} 
@@ -81,6 +80,10 @@ public class RobotPlayer{
 
 	private static MapLocation mladd(MapLocation m1, MapLocation m2){
 		return new MapLocation(m1.x+m2.x,m1.y+m2.y);
+	}
+	
+	private static MapLocation mlsub(MapLocation m1, MapLocation m2){
+		return new MapLocation(m1.x-m2.x , m1.y-m2.y);
 	}
 	
 	private static MapLocation mldivide(MapLocation bigM, int divisor){
@@ -98,24 +101,25 @@ public class RobotPlayer{
 	private static void tryToShoot() throws GameActionException {
 		//shooting
 		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,10000,rc.getTeam().opponent());
+		
 		if(enemyRobots.length>0){//if there are enemies
-			Robot anEnemy = enemyRobots[0];
-			RobotInfo anEnemyInfo;
-			anEnemyInfo = rc.senseRobotInfo(anEnemy);
-			rc.setIndicatorString(1, "" + anEnemyInfo.type);
-			if(rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
-					if(rc.isActive()){
-						rc.attackSquare(anEnemyInfo.location);
-					}
-					swarmMove(anEnemyInfo.location);
+			
+			for (Robot anEnemy : enemyRobots) {
+				  RobotInfo anEnemyInfo = rc.senseRobotInfo(anEnemy);
+				  if (rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
+				    if (rc.isActive()) {
+				      rc.attackSquare(anEnemyInfo.location);
+				      swarmMove(anEnemyInfo.location);
+				      break;
+				    }
+				  }
 				}
 		}
 	}
 	
 	private static void buildPASTR() throws GameActionException {
 		
-		if( randall.nextDouble() < 0.02 && rc.sensePastrLocations(rc.getTeam()).length<5 ) {
-			//&& rc.canSenseObject(rc.senseObjectAtLocation(rc.senseHQLocation()))== false
+		if( rc.sensePastrLocations(rc.getTeam()).length<5 && rc.senseCowsAtLocation(rc.getLocation()) >150) {
 			if( rc.isActive()){
 				rc.construct(RobotType.PASTR);
 			}
