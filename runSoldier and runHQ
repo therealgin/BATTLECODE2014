@@ -1,0 +1,94 @@
+import battlecode.common.*;
+import java.util.Random;
+
+public class RobotPlayer{
+	
+	public static RobotController rc;
+	static Direction[] allDirections = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
+	static Random randall = new Random();
+	static int directionalLooks[] = new int[]{0,1,-1,2,-2};
+	static boolean spawn = true;
+	
+	public static void run(RobotController rcin){
+		rc = rcin;
+		randall.setSeed(rc.getRobot().getID());
+		while(true){
+			try{
+				if(rc.getType()==RobotType.HQ){//if I'm a headquarters
+					runHeadquarters();
+				}else if(rc.getType()==RobotType.SOLDIER){//if i'm a soldier
+					runSoldier(rc);
+				} 
+				rc.yield();
+			}catch (Exception e){
+				e.printStackTrace();
+			}
+		}
+	}
+
+	private static void runSoldier(RobotController rc) throws GameActionException {
+		//find enemy robots
+		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,100000,rc.getTeam().opponent());
+		MapLocation[] robotLocations = VectorFunctions.robotsToLocations(enemyRobots, rc);
+		MapLocation closestEnemyRobot = VectorFunctions.findClosest(robotLocations, rc.getLocation());
+		//find enemy pastrs
+		MapLocation[] enemyPASTR = rc.sensePastrLocations(rc.getTeam().opponent());
+		MapLocation closestEnemyPASTR = VectorFunctions.findClosest(enemyPASTR, rc.getLocation());
+		
+		if (enemyPASTR.length >0){//enemy has made PASTRs so go towards the nearest one
+			Direction toEnemyPASTR = rc.getLocation().directionTo(closestEnemyPASTR);
+			if (rc.canMove(toEnemyPASTR) && rc.isActive()){
+				rc.move(toEnemyPASTR);
+			}
+		}
+		
+		if(enemyRobots.length>0){//if there are enemies 
+			
+			for (Robot anEnemy : enemyRobots) { //goes through nearby enemies and attacks one
+				  RobotInfo anEnemyInfo = rc.senseRobotInfo(anEnemy);
+				  if (rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
+				    if (rc.isActive()) {
+				      rc.attackSquare(anEnemyInfo.location);
+				      
+				      break;
+				    }
+				  }
+			} 
+			 
+			Direction toEnemyBot = rc.getLocation().directionTo(closestEnemyRobot);
+			if (rc.canMove(toEnemyBot) && rc.isActive() && closestEnemyRobot != rc.senseEnemyHQLocation()){
+				rc.move(toEnemyBot);
+			}
+		}
+			 else {//i have it moving randomly for now ,but i think we can use this for building/guarding pastr
+				Direction randomDirection = allDirections[(int)(randall.nextDouble()*8)];
+				if(rc.isActive()&&rc.canMove(randomDirection)){
+				rc.move(randomDirection);
+				}
+			}
+	}
+	private static void runHeadquarters() throws GameActionException {
+		Direction spawnDir = allDirections[randall.nextInt(8)];
+		Robot[] enemyNearHQ = rc.senseNearbyGameObjects(Robot.class, 15 ,rc.getTeam().opponent());
+		if (enemyNearHQ.length > 0) {
+			spawn = false;
+			if(rc.canAttackSquare(rc.senseRobotInfo(enemyNearHQ[0]).location)) {
+				if(rc.isActive()){
+					rc.attackSquare(rc.senseRobotInfo(rc.senseNearbyGameObjects(Robot.class, 15 ,rc.getTeam().opponent())[0]).location);
+				}
+			}
+		} else {
+			spawn = true;
+			if(spawn && rc.canMove(spawnDir)&&rc.senseRobotCount()<GameConstants.MAX_ROBOTS){
+				if (rc.isActive()) {
+					rc.spawn(spawnDir);
+				}
+			}
+		}
+	/*	int editingChannel = (Clock.getRoundNum()%2);
+		int usingChannel = ((Clock.getRoundNum()+1)%2);
+		rc.broadcast(editingChannel, 0);
+		rc.broadcast(editingChannel+2, 0);
+		*/
+	}
+}
