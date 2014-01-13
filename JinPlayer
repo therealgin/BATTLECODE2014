@@ -7,10 +7,10 @@ import java.util.Random;
 public class RobotPlayer{
 	
 	public static RobotController rc;
-	static Direction allDirections[] = Direction.values();
+	static Direction[] allDirections = {Direction.NORTH, Direction.NORTH_EAST, Direction.EAST, Direction.SOUTH_EAST, Direction.SOUTH, Direction.SOUTH_WEST, Direction.WEST, Direction.NORTH_WEST};
 	static Random randall = new Random();
 	static int directionalLooks[] = new int[]{0,1,-1,2,-2};
-	
+	static boolean spawn = true;
 	
 	public static void run(RobotController rcin){
 		rc = rcin;
@@ -19,7 +19,6 @@ public class RobotPlayer{
 			try{
 				if(rc.getType()==RobotType.HQ){//if I'm a headquarters
 					runHeadquarters();
-					tryToShoot();
 				}else if(rc.getType()==RobotType.SOLDIER){//if i'm a soldier
 					runSoldier();
 				} 
@@ -44,7 +43,7 @@ public class RobotPlayer{
 		
 		MapLocation runningVectorTotal = intToLoc(rc.readBroadcast(editingChannel+2));
 		rc.broadcast(editingChannel+2,locToInt(mladd(runningVectorTotal,rc.getLocation())));
-		MapLocation averagePositionOfSwarm = mldivide(intToLoc(rc.readBroadcast(usingChannel+2)),rc.readBroadcast(usingChannel)+1);
+		MapLocation averagePositionOfSwarm = mldivide(intToLoc(rc.readBroadcast(usingChannel+2)),rc.readBroadcast(usingChannel)+2);
 		
 		rc.setIndicatorString(0, ""+locToInt(averagePositionOfSwarm));
 		
@@ -59,20 +58,24 @@ public class RobotPlayer{
 	private static void swarmMove(MapLocation averagePositionOfSwarm) throws GameActionException{
 		Direction chosenDirection = rc.getLocation().directionTo(averagePositionOfSwarm);
 		if(rc.isActive()){
-			if(randall.nextDouble()<1.0){//go to swarm center
+			if(randall.nextDouble()< 0.1){//go to swarm center
 				for(int directionalOffset:directionalLooks){
 					int forwardInt = chosenDirection.ordinal();
 					Direction trialDir = allDirections[(forwardInt+directionalOffset+8)%8];
-					if(rc.canMove(trialDir)){
-						rc.move(trialDir);
-						break;
+					if (trialDir != Direction.NONE && trialDir != Direction.OMNI){
+						if(rc.canMove(trialDir)){
+							rc.move(trialDir);
+							break;
+						}
 					}
 				}
 			}else{//go towards enemy hq
-				Direction enemyHQ = rc.getLocation().directionTo(mldivide(mlsub(rc.senseEnemyHQLocation(),rc.senseHQLocation()),4));
-				if(rc.isActive()&&rc.canMove(enemyHQ)){
-					rc.move(enemyHQ);
-				} 
+				Direction enemyHQ = rc.getLocation().directionTo(rc.senseEnemyHQLocation());
+				if (enemyHQ != Direction.NONE && enemyHQ!= Direction.OMNI){
+					if(rc.canMove(enemyHQ)){
+						rc.move(enemyHQ);
+					} 
+				}
 			}
 		}
 	}
@@ -100,16 +103,16 @@ public class RobotPlayer{
 	
 	private static void tryToShoot() throws GameActionException {
 		//shooting
-		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,10000,rc.getTeam().opponent());
+		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,35,rc.getTeam().opponent());
 		
 		if(enemyRobots.length>0){//if there are enemies
-			
+			spawn = false;
 			for (Robot anEnemy : enemyRobots) {
 				  RobotInfo anEnemyInfo = rc.senseRobotInfo(anEnemy);
 				  if (rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
 				    if (rc.isActive()) {
 				      rc.attackSquare(anEnemyInfo.location);
-				      swarmMove(anEnemyInfo.location);
+				      spawn = true;
 				      break;
 				    }
 				  }
@@ -119,7 +122,7 @@ public class RobotPlayer{
 	
 	private static void buildPASTR() throws GameActionException {
 		
-		if( rc.sensePastrLocations(rc.getTeam()).length<5 && rc.senseCowsAtLocation(rc.getLocation()) >150) {
+		if( rc.sensePastrLocations(rc.getTeam()).length<5 && rc.senseCowsAtLocation(rc.getLocation()) >100) {
 			if( rc.isActive()){
 				rc.construct(RobotType.PASTR);
 			}
@@ -128,10 +131,12 @@ public class RobotPlayer{
 
 	private static void runHeadquarters() throws GameActionException {
 		Direction spawnDir = allDirections[randall.nextInt(8)];
-		if(rc.isActive()&&rc.canMove(spawnDir)&&rc.senseRobotCount()<GameConstants.MAX_ROBOTS){
-			rc.spawn(spawnDir);
-		}
-		
+		tryToShoot();
+			if(spawn && rc.canMove(spawnDir)&&rc.senseRobotCount()<GameConstants.MAX_ROBOTS){
+				if (rc.isActive()) {
+					rc.spawn(spawnDir);
+				}
+			}	
 		int editingChannel = (Clock.getRoundNum()%2);
 		int usingChannel = ((Clock.getRoundNum()+1)%2);
 		rc.broadcast(editingChannel, 0);
