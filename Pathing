@@ -1,0 +1,114 @@
+package dayton;
+
+import battlecode.common.*;
+import java.util.*;
+
+public class Pathing {
+
+	public static final Direction[] MOVE_DIRECTIONS = {Direction.NORTH,Direction.NORTH_EAST,Direction.EAST,Direction.SOUTH_EAST,Direction.SOUTH,Direction.SOUTH_WEST,Direction.WEST,Direction.NORTH_WEST};
+
+	public static void moveTo(RobotController rc, MapLocation destination, int acceptableDistanceSquared) throws GameActionException {
+		while(rc.getLocation().distanceSquaredTo(destination) > acceptableDistanceSquared) {
+			MapLocation currentLoc = rc.getLocation();
+			Direction toLocation = currentLoc.directionTo(destination);
+			if(rc.canMove(toLocation)) {
+				executeMove(rc,toLocation);
+			} else {
+				bug(rc,destination,toLocation);
+			}
+		}
+	}
+	
+	//To ensure the robot only tries to make one move at a time
+	private static boolean executeMove(RobotController rc, Direction dir) throws GameActionException {
+		while(!rc.isActive()) {
+			rc.yield();
+		}
+		if(rc.canMove(dir)) {
+			rc.move(dir);
+			return true;
+		}
+		return false;
+	}
+
+	private static void bug(RobotController rc, MapLocation destination, Direction tryDirection) throws GameActionException {
+		MapLocation beginning = rc.getLocation();
+		MapLocation companion = beginning.add(tryDirection);
+		int initialDistance = beginning.distanceSquaredTo(destination);
+		MapLocation currentLoc = beginning;
+		ArrayList<MapLocation> triedCompanions = new ArrayList<MapLocation>();
+
+		//Bug until we get closer to the destination
+		while((currentLoc.distanceSquaredTo(destination)) >= initialDistance) {
+			currentLoc = rc.getLocation();
+			boolean foundMove = false;
+			triedCompanions.add(companion);
+			for(Direction dir : MOVE_DIRECTIONS) {
+				if(rc.canMove(dir)) {
+					MapLocation newCompanion = getCompanion(rc,currentLoc,companion,dir);
+					if(newCompanion != null) {
+						companion = newCompanion;
+						foundMove = executeMove(rc,dir);
+						break;
+					}
+				}
+			}
+			if(foundMove) {
+				triedCompanions.clear();
+			} else {
+				//Cycles companion. Gets a new one. Maybe this one will work.
+				MapLocation newCompanion = cycleCompanion(rc,currentLoc,companion,triedCompanions);
+				if(newCompanion != null) {
+					companion = newCompanion;
+				}
+			}
+		}
+	}
+
+	private static MapLocation getCompanion(RobotController rc, MapLocation loc, MapLocation companion, Direction proposedMoveDir) throws GameActionException {
+		MapLocation proposedLoc = loc.add(proposedMoveDir);
+		//Try to find a companion square
+		for(Direction companionDirection : MOVE_DIRECTIONS) {
+			MapLocation proposedCompanion = proposedLoc.add(companionDirection);
+			TerrainTile terrain = rc.senseTerrainTile(proposedCompanion);
+			GameObject occupant = rc.senseObjectAtLocation(proposedCompanion);
+			//Companion must be a barrier
+			if(terrain == TerrainTile.OFF_MAP || terrain == TerrainTile.VOID || occupant != null) {
+				//To ensure they are part of the same structure. isAdjacentTo() does not include the possibility that 
+				//they are the same tile, which could be the case
+				if(proposedCompanion.isAdjacentTo(companion) || proposedCompanion.equals(companion)) {
+					//Right is a 90 degree CW rotation (+ 2*45) from forward direction. Forward direction = move direction
+					Direction right = MOVE_DIRECTIONS[(proposedMoveDir.ordinal() + 2) % 8];
+					Direction toCompanion = proposedLoc.directionTo(proposedCompanion);
+					//Make sure wall stays on the right
+					if((right.ordinal() == toCompanion.ordinal()) || (((right.ordinal() + 1) % 8) == toCompanion.ordinal())
+							|| (((right.ordinal() - 1) % 8) == toCompanion.ordinal())){
+						return proposedCompanion;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private static MapLocation cycleCompanion(RobotController rc, MapLocation loc, MapLocation companion, ArrayList<MapLocation> triedCompanions) throws GameActionException {
+		MapLocation proposedLoc = loc;
+		//Try to find a companion square
+		for(Direction companionDirection : MOVE_DIRECTIONS) {
+			MapLocation proposedCompanion = proposedLoc.add(companionDirection);
+			//Must be a companion we have not previously had
+			if(!triedCompanions.contains(proposedCompanion)) {
+				TerrainTile terrain = rc.senseTerrainTile(proposedCompanion);
+				GameObject occupant = rc.senseObjectAtLocation(proposedCompanion);
+				//Companion must be a barrier
+				if(terrain == TerrainTile.OFF_MAP || terrain == TerrainTile.VOID || occupant != null) {
+					//To ensure they are part of the same structure
+					if(proposedCompanion.isAdjacentTo(companion)) {
+						return proposedCompanion;
+					}
+				}
+			}
+		}
+		return null;
+	}
+}
