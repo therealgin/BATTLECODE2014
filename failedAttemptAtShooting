@@ -1,0 +1,46 @@
+	static MapLocation setindicator1 = null; 
+	static MapLocation setindicator2 = null;
+
+
+private static void runSoldier(RobotController rc) throws GameActionException {
+		//find enemy robots
+		Robot[] enemyRobots = rc.senseNearbyGameObjects(Robot.class,10000,rc.getTeam().opponent());
+		//find enemy pastrs
+		MapLocation[] enemyPASTR = rc.sensePastrLocations(rc.getTeam().opponent());
+		//nearby allies
+		Robot[] alliedRobots = rc.senseNearbyGameObjects(Robot.class, 35 , rc.getTeam());
+		
+		if(enemyRobots.length>0){//if there are enemies 
+			MapLocation[] robotLocations = VectorFunctions.robotsToLocations(enemyRobots, rc);
+			MapLocation closestEnemyRobot = VectorFunctions.findClosest(robotLocations, rc.getLocation());
+			setindicator1 = closestEnemyRobot;
+			 for (Robot anEnemy : enemyRobots) { //goes through nearby enemies and attacks one
+				  RobotInfo anEnemyInfo = rc.senseRobotInfo(anEnemy);
+				  if (rc.canAttackSquare(anEnemyInfo.location) && anEnemyInfo.type != RobotType.HQ){
+				    if (rc.isActive()) {
+				    	
+				      rc.attackSquare(anEnemyInfo.location);
+				      
+				      break;
+				    }
+				  }else {
+					  if (enemyPASTR.length >0){//enemy has made PASTRs so go towards the nearest one
+						  MapLocation closestEnemyPASTR = VectorFunctions.findClosest(enemyPASTR, rc.getLocation());
+						  if ( rc.isActive()){
+							  Pathing.moveTo(rc, closestEnemyPASTR, rc.getType().attackRadiusMaxSquared);
+						  }
+						  setindicator2 = closestEnemyPASTR;
+					  } else {
+						  if (rc.isActive() && closestEnemyRobot != rc.senseEnemyHQLocation()){
+							  Pathing.moveTo(rc, closestEnemyRobot, 20);
+						  }
+					  }
+				  }
+			} 
+			 	
+			 
+			
+		}
+		rc.setIndicatorString(1, "" + setindicator1);	
+		rc.setIndicatorString(2, "" + setindicator2);
+}
